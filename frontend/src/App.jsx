@@ -1,104 +1,159 @@
 import React, { useState, useEffect } from 'react';
-import Layout from './components/Layout';
 import Login from './Login';
+import Clientes from './Clientes';
 import Usuarios from './Usuarios';
-import Clientes from './Clientes'; // <-- Importar componente real
-import { PERMISOS_POR_ROL, getVistaInicial } from './config/permisos';
-
-// Vistas temporales restantes
-const DashboardTemp = () => <div className="p-8"><h1 className="text-2xl font-bold text-gray-900">Módulo Dashboard</h1><p className="text-gray-500 mt-2">Visión global de métricas e indicadores.</p></div>;
-const CotizacionesTemp = () => <div className="p-8"><h1 className="text-2xl font-bold text-gray-900">Módulo Cotizaciones</h1><p className="text-gray-500 mt-2">Generación de propuestas.</p></div>;
-const CitasTemp = () => <div className="p-8"><h1 className="text-2xl font-bold text-gray-900">Módulo Citas</h1><p className="text-gray-500 mt-2">Agenda semanal.</p></div>;
-const CatalogoTemp = () => <div className="p-8"><h1 className="text-2xl font-bold text-gray-900">Módulo Catálogo</h1><p className="text-gray-500 mt-2">Servicios base y tarifas.</p></div>;
-const HistorialTemp = () => <div className="p-8"><h1 className="text-2xl font-bold text-gray-900">Módulo Historial del Cliente</h1><p className="text-gray-500 mt-2">Expediente histórico de visitas.</p></div>;
+import Catalogo from './Catalogo';
+import Cotizaciones from './Cotizaciones';
+import Citas from './Citas';
+import Dashboard from './Dashboard';
 
 function App() {
-  const [usuarioSesion, setUsuarioSesion] = useState(null);
-  const [vistaActual, setVistaActual] = useState('clientes');
-  const [comprobandoSesion, setComprobandoSesion] = useState(true);
+  const [usuario, setUsuario] = useState(null);
+  const [vistaActual, setVistaActual] = useState('clientes'); // Vista por defecto
 
+  // Verificar si hay una sesión activa en localStorage al cargar la app
   useEffect(() => {
     const usuarioGuardado = localStorage.getItem('nailcrm_usuario');
-    const tokenGuardado = localStorage.getItem('nailcrm_token');
+    const token = localStorage.getItem('nailcrm_token');
 
-    if (usuarioGuardado && tokenGuardado) {
+    if (usuarioGuardado && token) {
       try {
-        const usuario = JSON.parse(usuarioGuardado);
-        setUsuarioSesion(usuario);
-        setVistaActual(getVistaInicial(usuario.rol));
+        setUsuario(JSON.parse(usuarioGuardado));
       } catch (e) {
         localStorage.removeItem('nailcrm_usuario');
         localStorage.removeItem('nailcrm_token');
       }
     }
-    setComprobandoSesion(false);
   }, []);
-
-  useEffect(() => {
-    if (usuarioSesion) {
-      const permitidos = PERMISOS_POR_ROL[usuarioSesion.rol] || [];
-      if (!permitidos.includes(vistaActual)) {
-        setVistaActual(getVistaInicial(usuarioSesion.rol));
-      }
-    }
-  }, [usuarioSesion, vistaActual]);
-
-  const handleLoginExitoso = (usuario) => {
-    setUsuarioSesion(usuario);
-    setVistaActual(getVistaInicial(usuario.rol));
-  };
 
   const handleCerrarSesion = () => {
     localStorage.removeItem('nailcrm_usuario');
     localStorage.removeItem('nailcrm_token');
-    setUsuarioSesion(null);
+    setUsuario(null);
   };
 
-  if (comprobandoSesion) {
-    return (
-      <div className="h-screen bg-[#FAF9F8] flex items-center justify-center font-sans text-gray-500 text-sm">
-        Cargando CRM Atenea Studio...
-      </div>
-    );
+  // Si no hay usuario autenticado, mostramos la pantalla de Login
+  if (!usuario) {
+    return <Login onLoginExitoso={(usr) => setUsuario(usr)} />;
   }
-
-  if (!usuarioSesion) {
-    return <Login onLoginExitoso={handleLoginExitoso} />;
-  }
-
-  const renderPantalla = () => {
-    const permitidos = PERMISOS_POR_ROL[usuarioSesion.rol] || [];
-    if (!permitidos.includes(vistaActual)) {
-      return (
-        <div className="p-12 text-center">
-          <div className="inline-block p-4 bg-red-50 text-red-600 rounded-full mb-3">⚠️</div>
-          <h2 className="text-xl font-bold text-gray-900">Acceso no autorizado</h2>
-          <p className="text-sm text-gray-500 mt-1">Tu rol no tiene permisos para acceder a esta sección.</p>
-        </div>
-      );
-    }
-
-    switch (vistaActual) {
-      case 'dashboard': return <DashboardTemp />;
-      case 'clientes': return <Clientes />; // <-- Módulo real conectado
-      case 'cotizaciones': return <CotizacionesTemp />;
-      case 'citas': return <CitasTemp />;
-      case 'catalogo': return <CatalogoTemp />;
-      case 'historial': return <HistorialTemp />;
-      case 'usuarios': return <Usuarios />;
-      default: return <Clientes />;
-    }
-  };
 
   return (
-    <Layout 
-      vistaActual={vistaActual} 
-      setVistaActual={setVistaActual} 
-      usuarioLogueado={usuarioSesion}
-      onCerrarSesion={handleCerrarSesion}
-    >
-      {renderPantalla()}
-    </Layout>
+    <div className="min-h-screen bg-[#FAF9F8] flex font-sans text-gray-800">
+      
+      {/* NAVEGACIÓN LATERAL (SIDEBAR) */}
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col justify-between p-6 flex-shrink-0">
+        <div>
+          {/* LOGO E IDENTIDAD DEL ESTUDIO */}
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-10 h-10 bg-[#B82B71] rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-sm">
+              A
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900 text-base leading-tight">Atenea Studio</h2>
+              <p className="text-[11px] text-gray-400">CRM & Control de Citas</p>
+            </div>
+          </div>
+
+          {/* MENÚ DE NAVEGACIÓN */}
+          <nav className="space-y-1.5 text-sm font-medium">
+            <button
+              onClick={() => setVistaActual('dashboard')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+                vistaActual === 'dashboard'
+                  ? 'bg-[#B82B71] text-white shadow-sm font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>📊</span> Dashboard
+            </button>
+
+            <button
+              onClick={() => setVistaActual('clientes')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+                vistaActual === 'clientes'
+                  ? 'bg-[#B82B71] text-white shadow-sm font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>👥</span> Clientes
+            </button>
+
+            <button
+              onClick={() => setVistaActual('cotizaciones')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+                vistaActual === 'cotizaciones'
+                  ? 'bg-[#B82B71] text-white shadow-sm font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>📄</span> Cotizaciones
+            </button>
+            
+            <button
+              onClick={() => setVistaActual('citas')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+                vistaActual === 'citas'
+                  ? 'bg-[#B82B71] text-white shadow-sm font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>📅</span> Citas
+            </button>
+
+            <button
+              onClick={() => setVistaActual('catalogo')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+                vistaActual === 'catalogo'
+                  ? 'bg-[#B82B71] text-white shadow-sm font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>💅</span> Catálogo de Servicios
+            </button>
+
+            <button
+              onClick={() => setVistaActual('usuarios')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl transition-colors flex items-center gap-3 ${
+                vistaActual === 'usuarios'
+                  ? 'bg-[#B82B71] text-white shadow-sm font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <span>🛡️</span> Personal / Usuarios
+            </button>
+          </nav>
+        </div>
+
+        {/* PIE DE PÁGINA CON PERFIL Y CERRA SESIÓN */}
+        <div className="pt-4 border-t border-gray-100">
+          <div className="mb-3 px-2">
+            <p className="text-xs font-bold text-gray-900 truncate">
+              {usuario.nombre} {usuario.apellido_paterno}
+            </p>
+            <p className="text-[11px] text-[#B82B71] capitalize font-medium">
+              {usuario.rol}
+            </p>
+          </div>
+          <button
+            onClick={handleCerrarSesion}
+            className="w-full text-left px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <span>🚪</span> Cerrar sesión
+          </button>
+        </div>
+      </aside>
+
+      {/* ÁREA DE CONTENIDO PRINCIPAL */}
+      <main className="flex-1 overflow-y-auto">
+        {vistaActual === 'clientes' && <Clientes />}
+        {vistaActual === 'cotizaciones' && <Cotizaciones />}
+        {vistaActual === 'catalogo' && <Catalogo />}
+        {vistaActual === 'usuarios' && <Usuarios />}
+        {vistaActual === 'citas' && <Citas />}
+        {vistaActual === 'dashboard' && <Dashboard />}
+      </main>
+
+    </div>
   );
 }
 
