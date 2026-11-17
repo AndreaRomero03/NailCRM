@@ -165,7 +165,8 @@ const Clientes = () => {
     }
   };
 
-  const clientesFiltrados = clientes.filter((c) => {
+  // Filtrado por búsqueda y pestaña de tipo
+  const clientesCoincidentes = clientes.filter((c) => {
     const nombreCompleto = `${c.nombre || ''} ${c.apellido_paterno || ''} ${c.apellido_materno || ''}`.toLowerCase();
     const coincideBusqueda =
       nombreCompleto.includes(busqueda.toLowerCase()) ||
@@ -174,6 +175,12 @@ const Clientes = () => {
     const coincideTipo = filtroTipo === 'todas' || c.tipo === filtroTipo;
     return coincideBusqueda && coincideTipo;
   });
+
+  // Limitar a 10 por defecto cuando no hay texto en el buscador
+  const hayBusquedaActiva = busqueda.trim().length > 0;
+  const clientesMostrados = hayBusquedaActiva
+    ? clientesCoincidentes
+    : clientesCoincidentes.slice(0, 10);
 
   const formatearFecha = (fechaStr) => {
     if (!fechaStr) return '-';
@@ -189,6 +196,28 @@ const Clientes = () => {
     } catch {
       return '-';
     }
+  };
+
+  const renderBadgeTipo = (tipo) => {
+    if (tipo === 'recurrente') {
+      return (
+        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-medium">
+          Recurrente
+        </span>
+      );
+    }
+    if (tipo === 'esporadica') {
+      return (
+        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium">
+          Esporádica
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-1 bg-[#FDF2F8] text-[#B82B71] border border-pink-200 rounded-full text-xs font-medium">
+        Nueva
+      </span>
+    );
   };
 
   return (
@@ -213,7 +242,7 @@ const Clientes = () => {
                 Expediente: {clienteSeleccionado.nombre} {clienteSeleccionado.apellido_paterno} {clienteSeleccionado.apellido_materno}
               </h1>
               <p className="text-xs text-gray-500 font-mono">
-                📞 WhatsApp: {clienteSeleccionado.telefono} | Fecha Nacimiento: <strong className="text-gray-700">{formatearFecha(clienteSeleccionado.fecha_nacimiento)}</strong> | Clasificación: <span className="capitalize font-bold text-[#B82B71]">{clienteSeleccionado.tipo}</span>
+                📞 WhatsApp: {clienteSeleccionado.telefono} | Fecha Nacimiento: <strong className="text-gray-700">{formatearFecha(clienteSeleccionado.fecha_nacimiento)}</strong> | Clasificación: <span className="capitalize font-bold text-[#B82B71]">{clienteSeleccionado.tipo === 'esporadica' ? 'Esporádica' : clienteSeleccionado.tipo}</span>
               </p>
             </div>
 
@@ -390,7 +419,7 @@ const Clientes = () => {
           )}
 
           {/* TARJETAS KPI */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
               <p className="text-sm text-gray-500 mb-1">Total Clientas</p>
               <p className="text-3xl font-bold text-gray-900">{clientes.length}</p>
@@ -408,7 +437,13 @@ const Clientes = () => {
               </p>
             </div>
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-              <p className="text-sm text-gray-500 mb-1">Con Alergias Registradas</p>
+              <p className="text-sm text-gray-500 mb-1">Clientas Esporádicas</p>
+              <p className="text-3xl font-bold text-amber-600">
+                {clientes.filter((c) => c.tipo === 'esporadica').length}
+              </p>
+            </div>
+            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">Con Alergias</p>
               <p className="text-3xl font-bold text-rose-600">
                 {clientes.filter((c) => c.alergia).length}
               </p>
@@ -416,11 +451,11 @@ const Clientes = () => {
           </div>
 
           {/* BARRA BÚSQUEDA */}
-          <div className="flex justify-between items-center gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div className="relative flex-1 min-w-[240px]">
               <input
                 type="text"
-                placeholder="Buscar por nombre o teléfono (WhatsApp)..."
+                placeholder="Buscar cualquier clienta por nombre o teléfono (WhatsApp)..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 className="w-full pl-4 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#B82B71]"
@@ -430,8 +465,9 @@ const Clientes = () => {
             <div className="flex gap-2 text-sm">
               {[
                 { label: 'Todas', value: 'todas' },
-                { label: 'Nuevas', value: 'nueva' },
                 { label: 'Recurrentes', value: 'recurrente' },
+                { label: 'Nuevas', value: 'nueva' },
+                { label: 'Esporádicas', value: 'esporadica' },
               ].map((btn) => (
                 <button
                   key={btn.value}
@@ -448,6 +484,15 @@ const Clientes = () => {
             </div>
           </div>
 
+          {/* INDICADOR DE TOP 10 */}
+          {!hayBusquedaActiva && clientesCoincidentes.length > 10 && (
+            <div className="text-xs text-gray-500 flex justify-between items-center px-1">
+              <span>
+                Mostrando el <strong>Top 10</strong> de clientas con mayor frecuencia de citas ({clientesMostrados.length} de {clientesCoincidentes.length} en esta vista). Usa el buscador para localizar a cualquier otra clienta.
+              </span>
+            </div>
+          )}
+
           {/* TABLA PRINCIPAL */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             {cargando ? (
@@ -460,6 +505,7 @@ const Clientes = () => {
                     <th className="px-6 py-3.5 font-medium">Teléfono (WhatsApp)</th>
                     <th className="px-6 py-3.5 font-medium">Fecha Nac.</th>
                     <th className="px-6 py-3.5 font-medium">Tipo</th>
+                    <th className="px-6 py-3.5 font-medium">Citas</th>
                     <th className="px-6 py-3.5 font-medium">Alergias</th>
                     <th className="px-6 py-3.5 font-medium">Contacto Emergencia</th>
                     <th className="px-6 py-3.5 font-medium">Preferencias</th>
@@ -468,7 +514,7 @@ const Clientes = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {clientesFiltrados.map((c) => (
+                  {clientesMostrados.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-gray-900">
                         {c.nombre} {c.apellido_paterno} {c.apellido_materno}
@@ -480,15 +526,10 @@ const Clientes = () => {
                         {formatearFecha(c.fecha_nacimiento)}
                       </td>
                       <td className="px-6 py-4">
-                        {c.tipo === 'recurrente' ? (
-                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-medium">
-                            Recurrente
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 bg-[#FDF2F8] text-[#B82B71] border border-pink-200 rounded-full text-xs font-medium">
-                            Nueva
-                          </span>
-                        )}
+                        {renderBadgeTipo(c.tipo)}
+                      </td>
+                      <td className="px-6 py-4 text-xs font-mono font-bold text-gray-700">
+                        {c.total_citas ?? 0}
                       </td>
                       <td className="px-6 py-4">
                         {c.alergia ? (
@@ -531,9 +572,9 @@ const Clientes = () => {
                       </td>
                     </tr>
                   ))}
-                  {clientesFiltrados.length === 0 && (
+                  {clientesMostrados.length === 0 && (
                     <tr>
-                      <td colSpan="9" className="px-6 py-8 text-center text-gray-400">
+                      <td colSpan="10" className="px-6 py-8 text-center text-gray-400">
                         No se encontraron clientas registradas.
                       </td>
                     </tr>
@@ -624,15 +665,20 @@ const Clientes = () => {
                     />
                   </div>
                   <div className="col-span-1">
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Tipo Clienta</label>
-                    <select
-                      value={formData.tipo}
-                      onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#B82B71]"
-                    >
-                      <option value="nueva">Nueva</option>
-                      <option value="recurrente">Recurrente</option>
-                    </select>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Tipo (Automático)</label>
+                    <input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={
+                        formData.tipo === 'recurrente'
+                          ? 'Recurrente'
+                          : formData.tipo === 'esporadica'
+                          ? 'Esporádica'
+                          : 'Nueva'
+                      }
+                      className="w-full px-3 py-2 border border-gray-200 bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed font-medium"
+                    />
                   </div>
                 </div>
 
