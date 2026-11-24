@@ -7,9 +7,70 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Función auxiliar: marca como 'vencida' cualquier cotización pendiente cuya fecha_vencimiento ya pasó
+const actualizarCotizacionesVencidas = async () => {
+  await pool.query(`
+    UPDATE public.cotizaciones
+    SET estado = 'vencida'
+    WHERE estado = 'pendiente'
+      AND fecha_vencimiento < CURRENT_DATE;
+  `);
+};
+
+// GET: Obtener parámetros globales de costo por hora y margen de ganancia
+router.get('/parametros', async (req, res) => {
+  try {
+    await pool.query(`
+      INSERT INTO public.configuracion_cotizacion (id, costo_hora, margen_ganancia)
+      VALUES (1, 0.00, 0.00)
+      ON CONFLICT (id) DO NOTHING;
+    `);
+    const { rows } = await pool.query(
+      'SELECT costo_hora, margen_ganancia, updated_at FROM public.configuracion_cotizacion WHERE id = 1;'
+    );
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error en GET /api/cotizaciones/parametros:', error);
+    res.status(500).json({ error: `Error al obtener parámetros: ${error.message}` });
+  }
+});
+
+// PUT: Actualizar parámetros globales de costo por hora y margen de ganancia
+router.put('/parametros', async (req, res) => {
+  const { costo_hora, margen_ganancia } = req.body;
+  const costoHoraNum = parseFloat(costo_hora);
+  const margenNum = parseFloat(margen_ganancia);
+
+  if (isNaN(costoHoraNum) || costoHoraNum < 0) {
+    return res.status(400).json({ error: 'El costo por hora debe ser un número mayor o igual a 0.' });
+  }
+  if (isNaN(margenNum) || margenNum < 0) {
+    return res.status(400).json({ error: 'El margen de ganancia debe ser un porcentaje mayor o igual a 0.' });
+  }
+
+  try {
+    const query = `
+      INSERT INTO public.configuracion_cotizacion (id, costo_hora, margen_ganancia, updated_at)
+      VALUES (1, $1, $2, NOW())
+      ON CONFLICT (id) DO UPDATE
+      SET costo_hora = EXCLUDED.costo_hora,
+          margen_ganancia = EXCLUDED.margen_ganancia,
+          updated_at = NOW()
+      RETURNING costo_hora, margen_ganancia, updated_at;
+    `;
+    const { rows } = await pool.query(query, [costoHoraNum, margenNum]);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error en PUT /api/cotizaciones/parametros:', error);
+    res.status(500).json({ error: `Error al guardar parámetros: ${error.message}` });
+  }
+});
+
 // GET: Obtener todas las cotizaciones con datos del cliente
 router.get('/', async (req, res) => {
   try {
+    await actualizarCotizacionesVencidas();
+
     const query = `
       SELECT c.folio, c.cliente_id, c.duracion_estimada_minutos, c.total, 
              c.fecha_emision, c.fecha_vencimiento, c.estado, c.created_at,
@@ -31,6 +92,8 @@ router.get('/', async (req, res) => {
 router.get('/:folio', async (req, res) => {
   const { folio } = req.params;
   try {
+    await actualizarCotizacionesVencidas();
+
     const queryCotizacion = `
       SELECT c.folio, c.cliente_id, c.duracion_estimada_minutos, c.total, 
              c.fecha_emision, c.fecha_vencimiento, c.estado, c.created_at,
@@ -47,7 +110,7 @@ router.get('/:folio', async (req, res) => {
 
     const queryDetalles = `
       SELECT d.id, d.folio_cotizacion, d.elemento_id, d.concepto, d.cantidad, d.precio_unitario, d.subtotal, d.created_at,
-             e.categoria_id, cat.nombre AS categoria_nombre
+             e.categoria_id, e.tipo_cobro, cat.nombre AS categoria_nombre
       FROM public.cotizacion_detalles d
       LEFT JOIN public.catalogo_elementos e ON d.elemento_id = e.id
       LEFT JOIN public.categorias cat ON e.categoria_id = cat.id
@@ -129,7 +192,7 @@ router.patch('/:folio/estado', async (req, res) => {
   const { folio } = req.params;
   const { estado } = req.body;
 
-  const estadosValidos = ['pendiente', 'aceptada', 'rechazada'];
+  const estadosValidos = ['pendiente', 'aceptada', 'rechazada', 'vencida'];
   if (!estadosValidos.includes(estado)) {
     return res.status(400).json({ error: 'Estado inválido.' });
   }

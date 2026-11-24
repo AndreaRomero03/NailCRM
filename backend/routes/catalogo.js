@@ -27,23 +27,31 @@ router.get('/categorias', async (req, res) => {
   }
 });
 
-// POST: Crear una nueva categoría
+// POST: Crear una nueva categoría (con protección contra duplicados)
 router.post('/categorias', async (req, res) => {
   const { nombre, descripcion, activo } = req.body;
 
-  if (!nombre) {
+  if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre de la categoría es obligatorio.' });
   }
 
   try {
+    const existe = await pool.query(
+      'SELECT id FROM public.categorias WHERE LOWER(TRIM(nombre)) = LOWER(TRIM($1)) LIMIT 1;',
+      [nombre]
+    );
+    if (existe.rows.length > 0) {
+      return res.status(409).json({ error: `Ya existe una categoría con el nombre "${nombre.trim()}".` });
+    }
+
     const query = `
       INSERT INTO public.categorias (nombre, descripcion, activo)
       VALUES ($1, $2, $3)
       RETURNING *;
     `;
     const values = [
-      nombre,
-      descripcion || null,
+      nombre.trim(),
+      descripcion ? descripcion.trim() : null,
       activo !== undefined ? Boolean(activo) : true
     ];
 
@@ -60,11 +68,19 @@ router.put('/categorias/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, descripcion, activo } = req.body;
 
-  if (!nombre) {
+  if (!nombre || !nombre.trim()) {
     return res.status(400).json({ error: 'El nombre de la categoría es obligatorio.' });
   }
 
   try {
+    const existe = await pool.query(
+      'SELECT id FROM public.categorias WHERE LOWER(TRIM(nombre)) = LOWER(TRIM($1)) AND id <> $2 LIMIT 1;',
+      [nombre, parseInt(id)]
+    );
+    if (existe.rows.length > 0) {
+      return res.status(409).json({ error: `Ya existe otra categoría con el nombre "${nombre.trim()}".` });
+    }
+
     const query = `
       UPDATE public.categorias
       SET nombre = $1,
@@ -74,8 +90,8 @@ router.put('/categorias/:id', async (req, res) => {
       RETURNING *;
     `;
     const values = [
-      nombre,
-      descripcion || null,
+      nombre.trim(),
+      descripcion ? descripcion.trim() : null,
       Boolean(activo),
       parseInt(id)
     ];
@@ -127,11 +143,18 @@ const esDuracionValida = (duracion) =>
   Number.isInteger(Number(duracion)) &&
   Number(duracion) >= 1;
 
+const TIPOS_COBRO_VALIDOS = ['uña', 'set', 'pieza'];
+
+const normalizarTipoCobro = (valor) => {
+  if (!valor) return 'set';
+  return String(valor).normalize('NFC').toLowerCase().trim();
+};
+
 // GET: Obtener todos los elementos del catálogo
 router.get('/elementos', async (req, res) => {
   try {
     const query = `
-      SELECT e.id, e.categoria_id, e.concepto, e.duracion_minutos, e.precio, e.activo, e.created_at,
+      SELECT e.id, e.categoria_id, e.concepto, e.duracion_minutos, e.precio, e.tipo_cobro, e.activo, e.created_at,
              COALESCE(c.nombre, 'Sin categoría') AS categoria_nombre
       FROM public.catalogo_elementos e
       LEFT JOIN public.categorias c ON e.categoria_id = c.id
@@ -145,11 +168,11 @@ router.get('/elementos', async (req, res) => {
   }
 });
 
-// POST: Registrar un nuevo servicio/elemento
+// POST: Registrar un nuevo servicio/elemento (con protección contra duplicados)
 router.post('/elementos', async (req, res) => {
-  const { categoria_id, concepto, duracion_minutos, precio, activo } = req.body;
+  const { categoria_id, concepto, duracion_minutos, precio, tipo_cobro, activo } = req.body;
 
-  if (!concepto || precio === undefined) {
+  if (!concepto || !concepto.trim() || precio === undefined) {
     return res.status(400).json({ error: 'El concepto y el precio son obligatorios.' });
   }
 
@@ -157,17 +180,31 @@ router.post('/elementos', async (req, res) => {
     return res.status(400).json({ error: 'La duración debe ser un número entero mayor o igual a 1 minuto.' });
   }
 
+  const tipoCobroNormalizado = normalizarTipoCobro(tipo_cobro);
+  if (!TIPOS_COBRO_VALIDOS.includes(tipoCobroNormalizado)) {
+    return res.status(400).json({ error: 'El tipo de cobro debe ser: uña, set o pieza.' });
+  }
+
   try {
+    const existe = await pool.query(
+      'SELECT id FROM public.catalogo_elementos WHERE LOWER(TRIM(concepto)) = LOWER(TRIM($1)) LIMIT 1;',
+      [concepto]
+    );
+    if (existe.rows.length > 0) {
+      return res.status(409).json({ error: `Ya existe un elemento registrado con el nombre "${concepto.trim()}".` });
+    }
+
     const query = `
-      INSERT INTO public.catalogo_elementos (categoria_id, concepto, duracion_minutos, precio, activo)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO public.catalogo_elementos (categoria_id, concepto, duracion_minutos, precio, tipo_cobro, activo)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
     const values = [
       categoria_id ? parseInt(categoria_id) : null,
-      concepto,
+      concepto.trim(),
       Number(duracion_minutos),
       parseFloat(precio),
+      tipoCobroNormalizado,
       activo !== undefined ? Boolean(activo) : true
     ];
 
@@ -179,12 +216,12 @@ router.post('/elementos', async (req, res) => {
   }
 });
 
-// PUT: Actualizar un servicio/elemento
+// PUT: Actualizar un servicio/elemento (id es UUID)
 router.put('/elementos/:id', async (req, res) => {
   const { id } = req.params;
-  const { categoria_id, concepto, duracion_minutos, precio, activo } = req.body;
+  const { categoria_id, concepto, duracion_minutos, precio, tipo_cobro, activo } = req.body;
 
-  if (!concepto || precio === undefined) {
+  if (!concepto || !concepto.trim() || precio === undefined) {
     return res.status(400).json({ error: 'El concepto y el precio son obligatorios.' });
   }
 
@@ -192,22 +229,37 @@ router.put('/elementos/:id', async (req, res) => {
     return res.status(400).json({ error: 'La duración debe ser un número entero mayor o igual a 1 minuto.' });
   }
 
+  const tipoCobroNormalizado = normalizarTipoCobro(tipo_cobro);
+  if (!TIPOS_COBRO_VALIDOS.includes(tipoCobroNormalizado)) {
+    return res.status(400).json({ error: 'El tipo de cobro debe ser: uña, set o pieza.' });
+  }
+
   try {
+    const existe = await pool.query(
+      'SELECT id FROM public.catalogo_elementos WHERE LOWER(TRIM(concepto)) = LOWER(TRIM($1)) AND id <> $2 LIMIT 1;',
+      [concepto, id]
+    );
+    if (existe.rows.length > 0) {
+      return res.status(409).json({ error: `Ya existe otro elemento registrado con el nombre "${concepto.trim()}".` });
+    }
+
     const query = `
       UPDATE public.catalogo_elementos
       SET categoria_id = $1,
           concepto = $2,
           duracion_minutos = $3,
           precio = $4,
-          activo = $5
-      WHERE id = $6
+          tipo_cobro = $5,
+          activo = $6
+      WHERE id = $7
       RETURNING *;
     `;
     const values = [
       categoria_id ? parseInt(categoria_id) : null,
-      concepto,
+      concepto.trim(),
       Number(duracion_minutos),
       parseFloat(precio),
+      tipoCobroNormalizado,
       Boolean(activo),
       id
     ];
@@ -225,7 +277,7 @@ router.put('/elementos/:id', async (req, res) => {
   }
 });
 
-// PATCH: Cambiar estado activo / inactivo de elemento
+// PATCH: Cambiar estado activo / inactivo de elemento (id es UUID)
 router.patch('/elementos/:id/estado', async (req, res) => {
   const { id } = req.params;
   const { activo } = req.body;

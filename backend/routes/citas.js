@@ -84,6 +84,23 @@ router.post('/', async (req, res) => {
   if (!fecha_hora_inicio) return res.status(400).json({ error: 'La fecha y hora de inicio son obligatorias.' });
 
   try {
+    // Validar rango permitido: a partir de mañana y máximo 30 días después de la fecha actual
+    const inicio = new Date(fecha_hora_inicio);
+    if (isNaN(inicio.getTime())) {
+      return res.status(400).json({ error: 'La fecha y hora de inicio no son válidas.' });
+    }
+
+    const ahora = new Date();
+    const inicioManana = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 1, 0, 0, 0, 0);
+    const finMax30Dias = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 30, 23, 59, 59, 999);
+
+    if (inicio < inicioManana) {
+      return res.status(400).json({ error: 'No se pueden agendar citas para el día actual ni fechas pasadas. Selecciona una fecha a partir de mañana.' });
+    }
+    if (inicio > finMax30Dias) {
+      return res.status(400).json({ error: 'Solo se pueden agendar citas con un máximo de 30 días posteriores a la fecha actual.' });
+    }
+
     // 1. Obtener la cotización
     const cotQuery = `SELECT folio, cliente_id, duracion_estimada_minutos, total, estado FROM public.cotizaciones WHERE folio = $1;`;
     const cotRes = await pool.query(cotQuery, [folio_cotizacion]);
@@ -96,7 +113,6 @@ router.post('/', async (req, res) => {
     }
 
     // 2. Calcular inicio y fin exacto en base a la duración de la cotización
-    const inicio = new Date(fecha_hora_inicio);
     const duracionMinutos = parseInt(cotizacion.duracion_estimada_minutos) || 60;
     const fin = new Date(inicio.getTime() + duracionMinutos * 60000);
 

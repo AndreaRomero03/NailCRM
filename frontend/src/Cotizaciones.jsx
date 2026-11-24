@@ -7,6 +7,12 @@ const Cotizaciones = () => {
   const [categorias, setCategorias] = useState([]);
   const [servicios, setServicios] = useState([]);
 
+  // Parámetros globales de cálculo (visibles para todos los usuarios)
+  const [parametros, setParametros] = useState({ costo_hora: 0, margen_ganancia: 0 });
+  const [modalParametrosAbierto, setModalParametrosAbierto] = useState(false);
+  const [formParametros, setFormParametros] = useState({ costo_hora: '0', margen_ganancia: '0' });
+  const [guardandoParametros, setGuardandoParametros] = useState(false);
+
   // Estados de interfaz
   const [vista, setVista] = useState('historial'); // 'historial' | 'nueva'
   const [cargando, setCargando] = useState(true);
@@ -52,17 +58,25 @@ const Cotizaciones = () => {
   const cargarTodo = async () => {
     try {
       setCargando(true);
-      const [resCot, resCli, resCat, resServ] = await Promise.all([
+      const [resCot, resCli, resCat, resServ, resParam] = await Promise.all([
         fetch('http://localhost:5000/api/cotizaciones'),
         fetch('http://localhost:5000/api/clientes'),
         fetch('http://localhost:5000/api/catalogo/categorias'),
-        fetch('http://localhost:5000/api/catalogo/elementos')
+        fetch('http://localhost:5000/api/catalogo/elementos'),
+        fetch('http://localhost:5000/api/cotizaciones/parametros')
       ]);
 
       if (resCot.ok) setCotizaciones(await resCot.json());
       if (resCli.ok) setClientes(await resCli.json());
       if (resCat.ok) setCategorias(await resCat.json());
       if (resServ.ok) setServicios(await resServ.json());
+      if (resParam.ok) {
+        const dataParam = await resParam.json();
+        setParametros({
+          costo_hora: Number(dataParam.costo_hora || 0),
+          margen_ganancia: Number(dataParam.margen_ganancia || 0)
+        });
+      }
 
       setError(null);
     } catch (err) {
@@ -75,6 +89,49 @@ const Cotizaciones = () => {
   useEffect(() => {
     cargarTodo();
   }, []);
+
+  // Abrir ventana emergente de parámetros
+  const handleAbrirModalParametros = () => {
+    setFormParametros({
+      costo_hora: String(parametros.costo_hora),
+      margen_ganancia: String(parametros.margen_ganancia)
+    });
+    setModalParametrosAbierto(true);
+  };
+
+  // Guardar parámetros globales en base de datos
+  const handleGuardarParametros = async (e) => {
+    e.preventDefault();
+    if (guardandoParametros) return;
+
+    try {
+      setGuardandoParametros(true);
+      const res = await fetch('http://localhost:5000/api/cotizaciones/parametros', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          costo_hora: parseFloat(formParametros.costo_hora) || 0,
+          margen_ganancia: parseFloat(formParametros.margen_ganancia) || 0
+        })
+      });
+
+      if (res.ok) {
+        const actualizado = await res.json();
+        setParametros({
+          costo_hora: Number(actualizado.costo_hora || 0),
+          margen_ganancia: Number(actualizado.margen_ganancia || 0)
+        });
+        setModalParametrosAbierto(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error: ${err.error || 'No se pudieron guardar los parámetros.'}`);
+      }
+    } catch (err) {
+      alert('Error de conexión con el servidor backend.');
+    } finally {
+      setGuardandoParametros(false);
+    }
+  };
 
   // Mapeo auxiliar de Categorías por ID
   const mapaCategorias = {};
@@ -107,11 +164,14 @@ const Cotizaciones = () => {
     const existe = detallesSeleccionados.find((d) => d.elemento_id === servicio.id);
     if (existe) return;
 
+    const tipoCobro = String(servicio.tipo_cobro || 'set').normalize('NFC').toLowerCase().trim();
+
     setDetallesSeleccionados((prev) => [
       ...prev,
       {
         elemento_id: servicio.id,
         concepto: servicio.concepto,
+        tipo_cobro: tipoCobro,
         cantidad: 1,
         precio_unitario: Number(servicio.precio),
         duracion_minutos: Number(servicio.duracion_minutos || 0),
@@ -120,13 +180,19 @@ const Cotizaciones = () => {
     ]);
   };
 
-  // Ajustar cantidad (1 a 10)
+  // Ajustar cantidad (1 a 10) solo para elementos por pieza o por uña
   const handleCambiarCantidad = (index, delta) => {
     setDetallesSeleccionados((prev) => {
       const copia = [...prev];
-      const nuevaCant = Math.max(1, Math.min(10, copia[index].cantidad + delta));
-      copia[index].cantidad = nuevaCant;
-      copia[index].subtotal = copia[index].precio_unitario * nuevaCant;
+      const item = copia[index];
+      if (item.tipo_cobro !== 'pieza' && item.tipo_cobro !== 'uña') return copia;
+
+      const nuevaCant = Math.max(1, Math.min(10, item.cantidad + delta));
+      copia[index] = {
+        ...item,
+        cantidad: nuevaCant,
+        subtotal: item.precio_unitario * nuevaCant
+      };
       return copia;
     });
   };
@@ -156,8 +222,13 @@ const Cotizaciones = () => {
     }
   };
 
-  const totalMonto = detallesSeleccionados.reduce((sum, d) => sum + d.subtotal, 0);
+  // Cálculos del desglose (Servicios + Costo por Hora + Margen de Ganancia)
+  const subtotalServicios = detallesSeleccionados.reduce((sum, d) => sum + d.subtotal, 0);
   const totalDuracionMinutos = detallesSeleccionados.reduce((sum, d) => sum + (d.duracion_minutos * d.cantidad), 0);
+  const costoTiempoTotal = (totalDuracionMinutos / 60) * Number(parametros.costo_hora || 0);
+  const baseConTiempo = subtotalServicios + costoTiempoTotal;
+  const montoMargenGanancia = baseConTiempo * (Number(parametros.margen_ganancia || 0) / 100);
+  const totalMonto = Number((baseConTiempo + montoMargenGanancia).toFixed(2));
 
   const handleGuardarCotizacion = async () => {
     if (!clienteSeleccionado) return alert('Por favor selecciona una clienta.');
@@ -426,7 +497,6 @@ const Cotizaciones = () => {
                       }`}
                     >
                       <div className="space-y-1">
-                        {/* Etiqueta / Badge de Categoría cuando se está en la pestaña "Todas" */}
                         {categoriaActiva === 'todas' && (
                           <span className="inline-block text-[10px] font-semibold bg-pink-50 text-[#B82B71] px-2 py-0.5 rounded-md">
                             {nombreCategoria}
@@ -434,7 +504,7 @@ const Cotizaciones = () => {
                         )}
                         <p className="text-xs font-bold text-gray-900">{s.concepto}</p>
                         <p className="text-[11px] text-gray-500">
-                          ⏱️ {s.duracion_minutos} min | <span className="font-semibold text-gray-800">${Number(s.precio).toFixed(2)}</span>
+                          ⏱️ {s.duracion_minutos} min | <span className="font-semibold text-gray-800">${Number(s.precio).toFixed(2)}</span> <span className="capitalize">({s.tipo_cobro || 'set'})</span>
                         </p>
                       </div>
 
@@ -461,11 +531,21 @@ const Cotizaciones = () => {
           {/* DESGLOSE EN PANEL DERECHO */}
           <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between min-h-[480px]">
             <div>
-              <div className="flex justify-between items-center border-b border-gray-100 pb-3 mb-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3 mb-4 gap-2">
                 <h3 className="text-base font-bold text-gray-900">Desglose de Cotización</h3>
-                <span className="text-xs bg-pink-50 text-[#B82B71] px-2.5 py-1 rounded-full font-semibold">
-                  {detallesSeleccionados.length} elemento(s)
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAbrirModalParametros}
+                    title="Configurar costo por hora y margen de ganancia"
+                    className="text-xs px-2.5 py-1 border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors flex items-center gap-1"
+                  >
+                    <span>⚙️</span> Parámetros
+                  </button>
+                  <span className="text-xs bg-pink-50 text-[#B82B71] px-2.5 py-1 rounded-full font-semibold">
+                    {detallesSeleccionados.length} elemento(s)
+                  </span>
+                </div>
               </div>
 
               {detallesSeleccionados.length === 0 ? (
@@ -474,56 +554,79 @@ const Cotizaciones = () => {
                   <p>Selecciona servicios del catálogo para armar el presupuesto.</p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                  {detallesSeleccionados.map((item, index) => (
-                    <div key={index} className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100 space-y-2">
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-xs font-bold text-gray-900">{item.concepto}</span>
-                        <button
-                          onClick={() => handleEliminarDetalle(index)}
-                          className="text-gray-400 hover:text-rose-600 text-xs font-bold transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {detallesSeleccionados.map((item, index) => {
+                    const permiteCantidad = item.tipo_cobro === 'pieza' || item.tipo_cobro === 'uña';
 
-                      <div className="flex justify-between items-center text-xs pt-1">
-                        <span className="text-gray-500">Cantidad (Uñas/Servicios):</span>
-                        <div className="flex items-center border border-gray-200 bg-white rounded-lg overflow-hidden shadow-sm">
+                    return (
+                      <div key={index} className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100 space-y-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="text-xs font-bold text-gray-900">{item.concepto}</span>
                           <button
-                            type="button"
-                            onClick={() => handleCambiarCantidad(index, -1)}
-                            className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold"
+                            onClick={() => handleEliminarDetalle(index)}
+                            className="text-gray-400 hover:text-rose-600 text-xs font-bold transition-colors"
                           >
-                            -
-                          </button>
-                          <span className="px-3 py-1 font-bold text-gray-900">{item.cantidad}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCambiarCantidad(index, 1)}
-                            className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold"
-                          >
-                            +
+                            ✕
                           </button>
                         </div>
-                      </div>
 
-                      <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-200/50">
-                        <span className="text-gray-400">${item.precio_unitario.toFixed(2)} c/u</span>
-                        <span className="font-mono font-bold text-gray-900">${item.subtotal.toFixed(2)}</span>
+                        {permiteCantidad && (
+                          <div className="flex justify-between items-center text-xs pt-1">
+                            <span className="text-gray-500">
+                              {item.tipo_cobro === 'uña' ? 'Cantidad (Uñas):' : 'Cantidad (Piezas):'}
+                            </span>
+                            <div className="flex items-center border border-gray-200 bg-white rounded-lg overflow-hidden shadow-sm">
+                              <button
+                                type="button"
+                                onClick={() => handleCambiarCantidad(index, -1)}
+                                className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold"
+                              >
+                                -
+                              </button>
+                              <span className="px-3 py-1 font-bold text-gray-900">{item.cantidad}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCambiarCantidad(index, 1)}
+                                className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-200/50">
+                          <span className="text-gray-400">
+                            ${item.precio_unitario.toFixed(2)} {permiteCantidad ? `por ${item.tipo_cobro}` : 'por set'}
+                          </span>
+                          <span className="font-mono font-bold text-gray-900">${item.subtotal.toFixed(2)}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            <div className="pt-4 border-t border-gray-100 space-y-3">
+            <div className="pt-4 border-t border-gray-100 space-y-2.5">
               <div className="flex justify-between text-xs text-gray-600">
                 <span>Tiempo Estimado Total:</span>
                 <span className="font-bold text-gray-900">⏱️ {totalDuracionMinutos} minutos</span>
               </div>
-              <div className="flex justify-between text-base font-bold text-gray-900">
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>Subtotal Servicios:</span>
+                <span className="font-mono font-semibold text-gray-900">${subtotalServicios.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>Costo por Hora (${Number(parametros.costo_hora).toFixed(2)}/hr):</span>
+                <span className="font-mono font-semibold text-gray-900">+ ${costoTiempoTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-gray-600">
+                <span>Margen de Ganancia ({Number(parametros.margen_ganancia).toFixed(1)}%):</span>
+                <span className="font-mono font-semibold text-emerald-700">+ ${montoMargenGanancia.toFixed(2)}</span>
+              </div>
+
+              <div className="pt-2 border-t border-gray-100 flex justify-between items-center text-base font-bold text-gray-900">
                 <span>Total Cotizado:</span>
                 <span className="text-[#B82B71] text-2xl font-mono">${totalMonto.toFixed(2)}</span>
               </div>
@@ -598,6 +701,8 @@ const Cotizaciones = () => {
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : cot.estado === 'pendiente'
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : cot.estado === 'vencida'
+                            ? 'bg-gray-100 text-gray-600 border border-gray-200'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
                           {cot.estado}
@@ -648,6 +753,88 @@ const Cotizaciones = () => {
         </div>
       )}
 
+      {/* MODAL CONFIGURAR PARÁMETROS GLOBALES (COSTO POR HORA Y MARGEN DE GANANCIA) */}
+      {modalParametrosAbierto && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Parámetros de Cotización</h3>
+                <p className="text-xs text-gray-500">Configuración global visible para todos los usuarios</p>
+              </div>
+              <button
+                type="button"
+                disabled={guardandoParametros}
+                onClick={() => setModalParametrosAbierto(false)}
+                className="text-gray-400 hover:text-gray-700 font-bold p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarParametros} className="p-6 space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Costo por Hora ($ MXN) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  disabled={guardandoParametros}
+                  value={formParametros.costo_hora}
+                  onChange={(e) => setFormParametros({ ...formParametros, costo_hora: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#B82B71]"
+                  placeholder="0.00"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Se calcula proporcionalmente a los minutos estimados de la cita.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Margen de Ganancia (%) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  disabled={guardandoParametros}
+                  value={formParametros.margen_ganancia}
+                  onChange={(e) => setFormParametros({ ...formParametros, margen_ganancia: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#B82B71]"
+                  placeholder="0.00"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Porcentaje aplicado sobre el subtotal de servicios más el costo por tiempo.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={guardandoParametros}
+                  onClick={() => setModalParametrosAbierto(false)}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={guardandoParametros}
+                  className="px-4 py-2 bg-[#B82B71] hover:bg-[#9d2460] disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm"
+                >
+                  {guardandoParametros ? 'Guardando...' : 'Guardar Parámetros'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DETALLE COMPLETO DE LA COTIZACIÓN */}
       {(cotizacionVer || cargandoModal) && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -689,6 +876,8 @@ const Cotizaciones = () => {
                           ? 'bg-emerald-100 text-emerald-800'
                           : cotizacionVer.estado === 'pendiente'
                           ? 'bg-amber-100 text-amber-800'
+                          : cotizacionVer.estado === 'vencida'
+                          ? 'bg-gray-200 text-gray-700'
                           : 'bg-rose-100 text-rose-800'
                       }`}>
                         {cotizacionVer.estado}

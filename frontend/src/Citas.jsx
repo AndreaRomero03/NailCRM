@@ -17,13 +17,35 @@ const Citas = () => {
   // Navegación de Fecha en Calendario
   const [fechaCalendario, setFechaCalendario] = useState(new Date());
 
-  // Formulario Nueva Cita
+  // Formulario Nueva Cita (Fecha y Hora separadas para bloqueo visual estricto en el calendario)
   const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
   const [manicuristaId, setManicuristaId] = useState('');
-  const [fechaHoraInicio, setFechaHoraInicio] = useState('');
+  const [fechaCita, setFechaCita] = useState('');
+  const [horaCita, setHoraCita] = useState('');
 
   // Modal para ver/editar cita seleccionada
   const [citaSeleccionadaModal, setCitaSeleccionadaModal] = useState(null);
+
+  // Calcular límites de agendamiento: mínimo mañana (no hoy) y máximo +30 días
+  const obtenerLimitesAgendamiento = () => {
+    const hoy = new Date();
+    const manana = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 1, 0, 0, 0, 0);
+    const max30 = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 30, 23, 59, 59, 999);
+
+    const aFormatoFechaInput = (d) => {
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
+
+    return {
+      minDate: aFormatoFechaInput(manana),
+      maxDate: aFormatoFechaInput(max30),
+      mananaObj: manana,
+      max30Obj: max30
+    };
+  };
+
+  const { minDate, maxDate, mananaObj, max30Obj } = obtenerLimitesAgendamiento();
 
   const cargarTodo = async () => {
     try {
@@ -67,7 +89,22 @@ const Citas = () => {
     e.preventDefault();
     if (!cotizacionSeleccionada) return alert('Selecciona una cotización aceptada.');
     if (!manicuristaId) return alert('Selecciona la manicurista encargada.');
-    if (!fechaHoraInicio) return alert('Selecciona la fecha y hora de inicio.');
+    if (!fechaCita) return alert('Selecciona la fecha de la cita.');
+    if (!horaCita) return alert('Selecciona la hora de inicio.');
+
+    if (fechaCita < minDate) {
+      return alert('No se permite agendar citas para el día actual ni fechas pasadas. Selecciona a partir de mañana.');
+    }
+    if (fechaCita > maxDate) {
+      return alert('Solo puedes agendar citas con un máximo de 30 días después de la fecha actual.');
+    }
+
+    const fechaHoraInicio = `${fechaCita}T${horaCita}`;
+    const fechaSeleccionadaObj = new Date(fechaHoraInicio);
+
+    if (fechaSeleccionadaObj < mananaObj || fechaSeleccionadaObj > max30Obj) {
+      return alert('La fecha seleccionada está fuera del rango permitido (mañana hasta 30 días).');
+    }
 
     try {
       const res = await fetch('http://localhost:5000/api/citas', {
@@ -84,7 +121,8 @@ const Citas = () => {
       if (res.ok) {
         setCotizacionSeleccionada(null);
         setManicuristaId('');
-        setFechaHoraInicio('');
+        setFechaCita('');
+        setHoraCita('');
         setModoVista('calendario');
         cargarTodo();
       } else {
@@ -97,29 +135,29 @@ const Citas = () => {
   };
 
   const handleCambiarEstado = async (folio, nuevoEstado) => {
-  try {
-    const res = await fetch(`http://localhost:5000/api/citas/${folio}/estado`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado: nuevoEstado })
-    });
+    try {
+      const res = await fetch(`http://localhost:5000/api/citas/${folio}/estado`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: nuevoEstado })
+      });
 
-    if (res.ok) {
-      const citaActualizada = await res.json();
-      cargarTodo(); // Recarga la lista/calendario
-      
-      if (citaSeleccionadaModal && citaSeleccionadaModal.folio_cotizacion === folio) {
-        setCitaSeleccionadaModal((prev) => ({ ...prev, estado: citaActualizada.estado }));
+      if (res.ok) {
+        const citaActualizada = await res.json();
+        cargarTodo(); // Recarga la lista/calendario
+        
+        if (citaSeleccionadaModal && citaSeleccionadaModal.folio_cotizacion === folio) {
+          setCitaSeleccionadaModal((prev) => ({ ...prev, estado: citaActualizada.estado }));
+        }
+      } else {
+        const err = await res.json();
+        alert(`Error al actualizar estado: ${err.error || 'No se pudo cambiar el estado'}`);
       }
-    } else {
-      const err = await res.json();
-      alert(`Error al actualizar estado: ${err.error || 'No se pudo cambiar el estado'}`);
+    } catch (err) {
+      console.error('Error en petición PATCH:', err);
+      alert('Error de conexión con el servidor backend.');
     }
-  } catch (err) {
-    console.error('Error en petición PATCH:', err);
-    alert('Error de conexión con el servidor backend.');
-  }
-};
+  };
 
   // --- LÓGICA DE CALENDARIO MENSUAL ---
   const añoActual = fechaCalendario.getFullYear();
@@ -485,7 +523,7 @@ const Citas = () => {
 
             {cotizacionSeleccionada && (
               <div className="p-4 bg-gray-50 rounded-xl space-y-4 border border-gray-100">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wider">2. Manicurista *</label>
                     <select
@@ -501,16 +539,31 @@ const Citas = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wider">3. Fecha y Hora *</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wider">3. Fecha *</label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       required
-                      value={fechaHoraInicio}
-                      onChange={(e) => setFechaHoraInicio(e.target.value)}
+                      min={minDate}
+                      max={maxDate}
+                      value={fechaCita}
+                      onChange={(e) => setFechaCita(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wider">4. Hora *</label>
+                    <input
+                      type="time"
+                      required
+                      value={horaCita}
+                      onChange={(e) => setHoraCita(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white"
                     />
                   </div>
                 </div>
+                <p className="text-[11px] text-gray-500">
+                  📅 Disponible a partir de mañana (<strong>{minDate}</strong>) hasta un máximo de 30 días (<strong>{maxDate}</strong>).
+                </p>
               </div>
             )}
 

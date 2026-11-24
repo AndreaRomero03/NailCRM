@@ -201,36 +201,33 @@ const Clientes = () => {
   const renderBadgeTipo = (tipo) => {
     if (tipo === 'recurrente') {
       return (
-        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-medium">
+        <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-medium whitespace-nowrap">
           Recurrente
         </span>
       );
     }
     if (tipo === 'esporadica') {
       return (
-        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium">
+        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-medium whitespace-nowrap">
           Esporádica
         </span>
       );
     }
     return (
-      <span className="px-2.5 py-1 bg-[#FDF2F8] text-[#B82B71] border border-pink-200 rounded-full text-xs font-medium">
+      <span className="px-2.5 py-1 bg-[#FDF2F8] text-[#B82B71] border border-pink-200 rounded-full text-xs font-medium whitespace-nowrap">
         Nueva
       </span>
     );
   };
 
   return (
-    <div className="p-8 space-y-6 font-sans">
+    <div className="p-6 lg:p-8 space-y-6 font-sans w-full max-w-full">
       
-      {/* ========================================================================= */}
-      {/* SUBMÓDULO SECUNDARIO: EXPEDIENTE COMPLETO DE LA CLIENTA                  */}
-      {/* ========================================================================= */}
+      {/* SUBMÓDULO SECUNDARIO: EXPEDIENTE COMPLETO DE LA CLIENTA */}
       {vistaSubmodulo === 'expediente' && clienteSeleccionado ? (
         <div className="space-y-6">
           
-          {/* CABECERA Y NAVEGACIÓN */}
-          <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <div className="space-y-1">
               <button
                 onClick={handleVolverALista}
@@ -256,10 +253,7 @@ const Clientes = () => {
             </div>
           </div>
 
-          {/* TARJETAS DE INFORMACIÓN CLÍNICA, BIOSEGURIDAD Y OBSERVACIONES */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            
-            {/* ALERGIAS Y BIOSEGURIDAD */}
             <div className={`p-5 rounded-2xl border ${
               clienteSeleccionado.alergia 
                 ? 'bg-rose-50/80 border-rose-200 text-rose-900' 
@@ -271,30 +265,24 @@ const Clientes = () => {
               </p>
             </div>
 
-            {/* CONTACTO DE EMERGENCIA */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Contacto de Emergencia</p>
               <p className="text-sm font-bold text-gray-800">{clienteSeleccionado.nombre_contacto_emergencia || 'No asignado'}</p>
               <p className="text-xs font-mono text-gray-500 mt-0.5">{clienteSeleccionado.telefono_contacto_emergencia || 'Sin teléfono'}</p>
             </div>
 
-            {/* PREFERENCIAS DEL SERVICIO */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Preferencias y Estilo</p>
               <p className="text-xs text-gray-700 font-medium whitespace-pre-wrap">{clienteSeleccionado.preferencias || 'Sin preferencias registradas'}</p>
             </div>
 
-            {/* OBSERVACIONES ADICIONALES DE LA UÑA */}
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Observaciones Técnicas</p>
               <p className="text-xs text-gray-700 font-medium whitespace-pre-wrap">{clienteSeleccionado.observaciones || 'Sin observaciones guardadas'}</p>
             </div>
-
           </div>
 
-          {/* HISTORIAL DE CITAS Y COTIZACIONES EN PESTAÑAS */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-            
             <div className="flex border-b border-gray-100 gap-6 text-sm font-bold">
               <button
                 onClick={() => setPestanaExpediente('citas')}
@@ -317,89 +305,88 @@ const Clientes = () => {
             {cargandoExpediente ? (
               <div className="py-8 text-center text-xs text-gray-400">Cargando historial del expediente...</div>
             ) : pestanaExpediente === 'citas' ? (
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#FAF9F8] text-gray-500 font-medium border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-3">Folio Cotización</th>
-                    <th className="px-4 py-3">Manicurista</th>
-                    <th className="px-4 py-3">Fecha Inicio</th>
-                    <th className="px-4 py-3">Fecha Fin</th>
-                    <th className="px-4 py-3">Total</th>
-                    <th className="px-4 py-3">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {datosHistorial.citas.map((cita, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono font-bold text-[#B82B71]">{cita.folio_cotizacion}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800">💅 {cita.manicurista_nombre || 'Sin asignar'}</td>
-                      <td className="px-4 py-3 font-medium text-gray-700">{formatearFechaHora(cita.fecha_hora_inicio)}</td>
-                      <td className="px-4 py-3 text-gray-500">{formatearFechaHora(cita.fecha_hora_fin)}</td>
-                      <td className="px-4 py-3 font-mono font-bold text-gray-900">${Number(cita.total).toFixed(2)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
-                          cita.estado === 'completada' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          cita.estado === 'programada' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {cita.estado}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {datosHistorial.citas.length === 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FAF9F8] text-gray-500 font-medium border-b border-gray-100">
                     <tr>
-                      <td colSpan="6" className="px-4 py-8 text-center text-gray-400">Esta clienta aún no tiene citas agendadas.</td>
+                      <th className="px-4 py-3">Folio Cotización</th>
+                      <th className="px-4 py-3">Manicurista</th>
+                      <th className="px-4 py-3">Fecha Inicio</th>
+                      <th className="px-4 py-3">Fecha Fin</th>
+                      <th className="px-4 py-3">Total</th>
+                      <th className="px-4 py-3">Estado</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700">
+                    {datosHistorial.citas.map((cita, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono font-bold text-[#B82B71]">{cita.folio_cotizacion}</td>
+                        <td className="px-4 py-3 font-medium text-gray-800">💅 {cita.manicurista_nombre || 'Sin asignar'}</td>
+                        <td className="px-4 py-3 font-medium text-gray-700">{formatearFechaHora(cita.fecha_hora_inicio)}</td>
+                        <td className="px-4 py-3 text-gray-500">{formatearFechaHora(cita.fecha_hora_fin)}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-gray-900">${Number(cita.total).toFixed(2)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
+                            cita.estado === 'completada' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            cita.estado === 'programada' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {cita.estado}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {datosHistorial.citas.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-8 text-center text-gray-400">Esta clienta aún no tiene citas agendadas.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#FAF9F8] text-gray-500 font-medium border-b border-gray-100">
-                  <tr>
-                    <th className="px-4 py-3">Folio</th>
-                    <th className="px-4 py-3">Fecha Emisión</th>
-                    <th className="px-4 py-3">Duración Est.</th>
-                    <th className="px-4 py-3">Monto Total</th>
-                    <th className="px-4 py-3">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {datosHistorial.cotizaciones.map((cot, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono font-bold text-[#B82B71]">{cot.folio}</td>
-                      <td className="px-4 py-3 text-gray-600">{formatearFecha(cot.fecha_emision)}</td>
-                      <td className="px-4 py-3 text-gray-700">⏱️ {cot.duracion_estimada_minutos} min</td>
-                      <td className="px-4 py-3 font-mono font-bold text-gray-900">${Number(cot.total).toFixed(2)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
-                          cot.estado === 'aceptada' ? 'bg-emerald-50 text-emerald-700' :
-                          cot.estado === 'pendiente' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
-                        }`}>
-                          {cot.estado}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {datosHistorial.cotizaciones.length === 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#FAF9F8] text-gray-500 font-medium border-b border-gray-100">
                     <tr>
-                      <td colSpan="5" className="px-4 py-8 text-center text-gray-400">Esta clienta aún no cuenta con cotizaciones.</td>
+                      <th className="px-4 py-3">Folio</th>
+                      <th className="px-4 py-3">Fecha Emisión</th>
+                      <th className="px-4 py-3">Duración Est.</th>
+                      <th className="px-4 py-3">Monto Total</th>
+                      <th className="px-4 py-3">Estado</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700">
+                    {datosHistorial.cotizaciones.map((cot, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono font-bold text-[#B82B71]">{cot.folio}</td>
+                        <td className="px-4 py-3 text-gray-600">{formatearFecha(cot.fecha_emision)}</td>
+                        <td className="px-4 py-3 text-gray-700">⏱️ {cot.duracion_estimada_minutos} min</td>
+                        <td className="px-4 py-3 font-mono font-bold text-gray-900">${Number(cot.total).toFixed(2)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
+                            cot.estado === 'aceptada' ? 'bg-emerald-50 text-emerald-700' :
+                            cot.estado === 'pendiente' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+                          }`}>
+                            {cot.estado}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {datosHistorial.cotizaciones.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="px-4 py-8 text-center text-gray-400">Esta clienta aún no cuenta con cotizaciones.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
-
           </div>
-
         </div>
       ) : (
-
-        /* ========================================================================= */
-        /* VISTA PRINCIPAL: TABLA DE CLIENTES                                       */
-        /* ========================================================================= */
+        /* VISTA PRINCIPAL: TABLA DE CLIENTES */
         <>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Gestión de Clientes</h1>
               <p className="text-sm text-gray-500">Expediente completo de clientas, fechas especiales, alergias y emergencias</p>
@@ -452,7 +439,7 @@ const Clientes = () => {
 
           {/* BARRA BÚSQUEDA */}
           <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-            <div className="relative flex-1 min-w-[240px]">
+            <div className="relative flex-1 min-w-[220px]">
               <input
                 type="text"
                 placeholder="Buscar cualquier clienta por nombre o teléfono (WhatsApp)..."
@@ -462,7 +449,7 @@ const Clientes = () => {
               />
             </div>
 
-            <div className="flex gap-2 text-sm">
+            <div className="flex flex-wrap gap-2 text-sm">
               {[
                 { label: 'Todas', value: 'todas' },
                 { label: 'Recurrentes', value: 'recurrente' },
@@ -472,7 +459,7 @@ const Clientes = () => {
                 <button
                   key={btn.value}
                   onClick={() => setFiltroTipo(btn.value)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  className={`px-3.5 py-2 rounded-lg font-medium transition-colors ${
                     filtroTipo === btn.value
                       ? 'bg-[#B82B71] text-white'
                       : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -494,93 +481,93 @@ const Clientes = () => {
           )}
 
           {/* TABLA PRINCIPAL */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden w-full">
             {cargando ? (
               <div className="p-8 text-center text-gray-500">Cargando expediente de clientas...</div>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead className="bg-[#FAF9F8] text-gray-500 font-medium border-b border-gray-100">
-                  <tr>
-                    <th className="px-6 py-3.5 font-medium">Nombre completo</th>
-                    <th className="px-6 py-3.5 font-medium">Teléfono (WhatsApp)</th>
-                    <th className="px-6 py-3.5 font-medium">Fecha Nac.</th>
-                    <th className="px-6 py-3.5 font-medium">Tipo</th>
-                    <th className="px-6 py-3.5 font-medium">Citas</th>
-                    <th className="px-6 py-3.5 font-medium">Alergias</th>
-                    <th className="px-6 py-3.5 font-medium">Contacto Emergencia</th>
-                    <th className="px-6 py-3.5 font-medium">Preferencias</th>
-                    <th className="px-6 py-3.5 font-medium">Observaciones</th>
-                    <th className="px-6 py-3.5 font-medium text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {clientesMostrados.map((c) => (
-                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-gray-900">
-                        {c.nombre} {c.apellido_paterno} {c.apellido_materno}
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs text-gray-800">
-                        {c.telefono}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-gray-600">
-                        {formatearFecha(c.fecha_nacimiento)}
-                      </td>
-                      <td className="px-6 py-4">
-                        {renderBadgeTipo(c.tipo)}
-                      </td>
-                      <td className="px-6 py-4 text-xs font-mono font-bold text-gray-700">
-                        {c.total_citas ?? 0}
-                      </td>
-                      <td className="px-6 py-4">
-                        {c.alergia ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs font-bold">
-                            ⚠️ Sí presenta
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 text-gray-400 text-xs">Sin alergias</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs">
-                        {c.nombre_contacto_emergencia ? (
-                          <div>
-                            <p className="font-semibold text-gray-800">{c.nombre_contacto_emergencia}</p>
-                            <p className="font-mono text-gray-500">{c.telefono_contacto_emergencia || 'Sin teléfono'}</p>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-gray-600 max-w-[200px] break-words whitespace-normal max-h-24 overflow-y-auto">
-                        {c.preferencias || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-gray-600 max-w-[200px] break-words whitespace-normal max-h-24 overflow-y-auto">
-                        {c.observaciones || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-1">
-                        <button
-                          onClick={() => handleAbrirExpediente(c)}
-                          className="text-xs px-2.5 py-1.5 bg-pink-50 text-[#B82B71] border border-pink-200 rounded-md hover:bg-pink-100 transition-colors font-semibold"
-                        >
-                          📋 Expediente
-                        </button>
-                        <button
-                          onClick={() => handleAbrirEditar(c)}
-                          className="text-xs px-2.5 py-1.5 border border-gray-200 text-gray-600 rounded-md hover:bg-gray-100 transition-colors"
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {clientesMostrados.length === 0 && (
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#FAF9F8] text-gray-500 font-medium border-b border-gray-100">
                     <tr>
-                      <td colSpan="10" className="px-6 py-8 text-center text-gray-400">
-                        No se encontraron clientas registradas.
-                      </td>
+                      <th className="px-4 py-3.5 font-medium">Nombre completo</th>
+                      <th className="px-4 py-3.5 font-medium">Teléfono (WhatsApp)</th>
+                      <th className="px-4 py-3.5 font-medium">Fecha Nac.</th>
+                      <th className="px-4 py-3.5 font-medium">Tipo</th>
+                      <th className="px-4 py-3.5 font-medium">Alergias</th>
+                      <th className="px-4 py-3.5 font-medium">Contacto Emergencia</th>
+                      <th className="px-4 py-3.5 font-medium">Preferencias</th>
+                      <th className="px-4 py-3.5 font-medium">Observaciones</th>
+                      <th className="px-4 py-3.5 font-medium text-right">Acciones</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-gray-700">
+                    {clientesMostrados.map((c) => (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3.5 font-semibold text-gray-900">
+                          {c.nombre} {c.apellido_paterno} {c.apellido_materno}
+                        </td>
+                        <td className="px-4 py-3.5 font-mono text-xs text-gray-800 whitespace-nowrap">
+                          {c.telefono}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-gray-600 whitespace-nowrap">
+                          {formatearFecha(c.fecha_nacimiento)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {renderBadgeTipo(c.tipo)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {c.alergia ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs font-bold whitespace-nowrap">
+                              ⚠️ Sí presenta
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-gray-400 text-xs whitespace-nowrap">Sin alergias</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs">
+                          {c.nombre_contacto_emergencia ? (
+                            <div>
+                              <p className="font-semibold text-gray-800">{c.nombre_contacto_emergencia}</p>
+                              <p className="font-mono text-gray-500">{c.telefono_contacto_emergencia || 'Sin teléfono'}</p>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-gray-600 max-w-[160px] break-words whitespace-normal max-h-24 overflow-y-auto">
+                          {c.preferencias || '-'}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-gray-600 max-w-[160px] break-words whitespace-normal max-h-24 overflow-y-auto">
+                          {c.observaciones || '-'}
+                        </td>
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleAbrirExpediente(c)}
+                              className="text-xs px-2.5 py-1.5 bg-pink-50 text-[#B82B71] border border-pink-200 rounded-md hover:bg-pink-100 transition-colors font-semibold"
+                            >
+                              📋 Expediente
+                            </button>
+                            <button
+                              onClick={() => handleAbrirEditar(c)}
+                              className="text-xs px-2.5 py-1.5 border border-gray-200 text-gray-600 rounded-md hover:bg-gray-100 transition-colors"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {clientesMostrados.length === 0 && (
+                      <tr>
+                        <td colSpan="9" className="px-6 py-8 text-center text-gray-400">
+                          No se encontraron clientas registradas.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </>
